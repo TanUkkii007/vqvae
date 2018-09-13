@@ -58,14 +58,14 @@ class VectorQuantizer(tf.layers.Layer):
                                         encodings=encodings,
                                         encoding_indices=encoding_indices)
 
-    @ @property
+    @property
     def embeddings(self):
         return self._e
 
     def square_distance_from_e(self, z):
-        return (tf.reduce_sum(z ** 2, axis=1, keep_dims=True)
+        return (tf.reduce_sum(z ** 2, axis=1, keepdims=True)
                 - 2 * tf.matmul(z, self._e)
-                + tf.reduce_sum(self._e ** 2, axis=0, keep_dims=True))
+                + tf.reduce_sum(self._e ** 2, axis=0, keepdims=True))
 
     def quantize(self, encoding_indices):
         with tf.control_dependencies([encoding_indices]):
