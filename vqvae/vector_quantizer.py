@@ -7,7 +7,9 @@ from collections import namedtuple
 
 
 class VectorQuantizationResult(
-    namedtuple("VectorQuantizationResult", ["quantize", "perplexity", "encodings", "encoding_indices"])):
+    namedtuple("VectorQuantizationResult",
+               ["quantize", "perplexity", "encodings", "encoding_indices", "loss", "q_latent_loss",
+                "commitment_loss"])):
     pass
 
 
@@ -39,15 +41,14 @@ class VectorQuantizer(tf.layers.Layer):
 
         encoding_indices = tf.argmax(-distances, axis=1)
         encodings = tf.one_hot(encoding_indices, self._num_embeddings)
-        encoding_indices = tf.reshape(encoding_indices, z.shape.as_list()[:-1])
+        encoding_indices = tf.reshape(encoding_indices, shape=tf.shape(z)[:-1])
         quantized = self.quantize(encoding_indices)
 
         q_latent_loss = (tf.stop_gradient(z) - quantized) ** 2
-        e_latent_loss = (z - tf.stop_gradient(quantized)) ** 2
-        loss = q_latent_loss + self._commitment_cost * e_latent_loss
+        commitment_loss = (z - tf.stop_gradient(quantized)) ** 2
+        loss = tf.losses.compute_weighted_loss(q_latent_loss + self._commitment_cost * commitment_loss)
 
-        self.add_loss(
-            tf.losses.compute_weighted_loss(loss), inputs=inputs)
+        self.add_loss(loss)
 
         quantized = z + tf.stop_gradient(quantized - z)
         avg_probs = tf.reduce_mean(encodings, axis=0)
@@ -56,7 +57,10 @@ class VectorQuantizer(tf.layers.Layer):
         return VectorQuantizationResult(quantize=quantized,
                                         perplexity=perplexity,
                                         encodings=encodings,
-                                        encoding_indices=encoding_indices)
+                                        encoding_indices=encoding_indices,
+                                        loss=loss,
+                                        q_latent_loss=tf.reduce_mean(q_latent_loss),
+                                        commitment_loss=tf.reduce_mean(commitment_loss))
 
     @property
     def embeddings(self):

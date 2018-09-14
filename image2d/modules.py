@@ -11,7 +11,8 @@ class PreNet(tf.layers.Layer):
 
         self._conv2d = tf.layers.Conv2D(out_units,
                                         kernel_size=(1, 1),
-                                        strides=(1, 1))
+                                        strides=(1, 1),
+                                        padding='SAME')
 
     def call(self, inputs, **kwargs):
         return self._conv2d(inputs)
@@ -27,20 +28,22 @@ class ResidualBlock(tf.layers.Layer):
         self._res3x3 = tf.layers.Conv2D(filters=num_residual_hiddens,
                                         kernel_size=(3, 3),
                                         strides=(1, 1),
+                                        padding='SAME',
                                         activation=tf.nn.relu,
                                         name=f"res3x3_{residual_index}")
 
         self._res1x1 = tf.layers.Conv2D(filters=out_units,
                                         kernel_size=(1, 1),
                                         strides=(1, 1),
+                                        padding='SAME',
                                         activation=None,
                                         name=f"res1x1_{residual_index}")
 
     def call(self, inputs, **kwargs):
-        h = self._res3x3(inputs)
-        h = self._res1x1(h)
-        h += inputs
-        return tf.nn.relu(h)
+        h_i = self._res3x3(inputs)
+        h_i = self._res1x1(h_i)
+        h_i += inputs
+        return tf.nn.relu(h_i)
 
 
 class ResidualStack(tf.layers.Layer):
@@ -64,19 +67,22 @@ class Encoder(tf.layers.Layer):
         super(Encoder, self).__init__(trainable=trainable, name=name, dtype=dtype,
                                       **kwargs)
 
-        conv2d_1 = tf.layers.Conv2D(filters=num_hiddens,
+        conv2d_1 = tf.layers.Conv2D(filters=num_hiddens // 2,
                                     kernel_size=(4, 4),
                                     strides=(2, 2),
+                                    padding='SAME',
                                     activation=tf.nn.relu)
 
         conv2d_2 = tf.layers.Conv2D(filters=num_hiddens,
                                     kernel_size=(4, 4),
                                     strides=(2, 2),
+                                    padding='SAME',
                                     activation=tf.nn.relu)
 
         conv2d_3 = tf.layers.Conv2D(filters=num_hiddens,
                                     kernel_size=(3, 3),
                                     strides=(1, 1),
+                                    padding='SAME',
                                     activation=tf.nn.relu)
 
         self._convolutions = [conv2d_1, conv2d_2, conv2d_3]
@@ -90,7 +96,7 @@ class Encoder(tf.layers.Layer):
 
 class Decoder(tf.layers.Layer):
 
-    def __init__(self, num_hiddens, num_residual_layers, num_residual_hiddens,
+    def __init__(self, out_units, num_hiddens, num_residual_layers, num_residual_hiddens,
                  trainable=True, name=None, dtype=None, **kwargs):
         super(Decoder, self).__init__(trainable=trainable, name=name, dtype=dtype,
                                       **kwargs)
@@ -98,22 +104,25 @@ class Decoder(tf.layers.Layer):
         conv2d_1 = tf.layers.Conv2D(filters=num_hiddens,
                                     kernel_size=(3, 3),
                                     strides=(1, 1),
+                                    padding='SAME',
                                     activation=tf.nn.relu)
 
         residual_stack = ResidualStack(num_hiddens, num_residual_layers, num_residual_hiddens)
 
-        conv2dt_1 = tf.layers.Conv2DTranspose(filters=num_hiddens,
+        conv2dt_1 = tf.layers.Conv2DTranspose(filters=num_hiddens // 2,
                                               kernel_size=(4, 4),
                                               strides=(2, 2),
+                                              padding='SAME',
                                               activation=tf.nn.relu)
 
-        conv2dt_2 = tf.layers.Conv2DTranspose(filters=num_hiddens,
+        conv2dt_2 = tf.layers.Conv2DTranspose(filters=out_units,
                                               kernel_size=(4, 4),
                                               strides=(2, 2),
+                                              padding='SAME',
                                               activation=None)
 
         self._layers = [conv2d_1, residual_stack, conv2dt_1, conv2dt_2]
 
     def call(self, inputs, **kwargs):
-        reconstruction = reduce(lambda acc, l: acc(l), self._layers, inputs)
+        reconstruction = reduce(lambda acc, l: l(acc), self._layers, inputs)
         return reconstruction
