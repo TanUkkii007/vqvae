@@ -48,6 +48,14 @@ class ImageVQVAEModel(tf.estimator.Estimator):
                 train_op = optimizer.minimize(loss)
 
                 return tf.estimator.EstimatorSpec(mode, loss=loss, train_op=train_op)
+            elif is_validation:
+                eval_metric_ops = self.get_validation_metrics(reconstruction_loss=reconstruction_loss,
+                                                              q_latent_loss=vq_output.q_latent_loss,
+                                                              commitment_loss=vq_output.commitment_loss,
+                                                              perplexity=vq_output.perplexity)
+
+                return tf.estimator.EstimatorSpec(mode, loss=loss,
+                                                  eval_metric_ops=eval_metric_ops)
 
         super(ImageVQVAEModel, self).__init__(
             model_fn=model_fn, model_dir=model_dir, config=config,
@@ -63,3 +71,12 @@ class ImageVQVAEModel(tf.estimator.Estimator):
         tf.summary.scalar("perplexity", perplexity)
         tf.summary.scalar("learning_rate", learning_rate)
         return tf.summary.merge_all()
+
+    @staticmethod
+    def get_validation_metrics(reconstruction_loss, q_latent_loss, commitment_loss, perplexity):
+        return {
+            'reconstruction_loss': tf.metrics.mean(reconstruction_loss),
+            'q_latent_loss': tf.metrics.mean(q_latent_loss),
+            'commitment_loss': tf.metrics.mean(commitment_loss),
+            'perplexity': tf.metrics.mean(perplexity)
+        }
