@@ -1,6 +1,7 @@
 import tensorflow as tf
 from vqvae.vector_quantizer import VectorQuantizer
 from image2d.modules import Encoder, Decoder, PreNet
+from image2d.metrics import MetricsSaver
 
 
 class ImageVQVAEModel(tf.estimator.Estimator):
@@ -36,6 +37,9 @@ class ImageVQVAEModel(tf.estimator.Estimator):
             reconstruction_loss = tf.losses.compute_weighted_loss(tf.squared_difference(reconstruction, x))
             loss = vq_output.loss + reconstruction_loss
 
+            global_step = tf.train.get_global_step()
+            summary_writer = tf.summary.FileWriter(model_dir)
+
             if is_training:
                 self.add_training_stats(loss=loss,
                                         reconstruction_loss=reconstruction_loss,
@@ -45,17 +49,32 @@ class ImageVQVAEModel(tf.estimator.Estimator):
                                         learning_rate=params.learning_rate)
 
                 optimizer = tf.train.AdamOptimizer(learning_rate=params.learning_rate)
-                train_op = optimizer.minimize(loss)
+                train_op = optimizer.minimize(loss, global_step=global_step)
 
-                return tf.estimator.EstimatorSpec(mode, loss=loss, train_op=train_op)
+                metrics_hook = MetricsSaver(original_image_tensor=x,
+                                            reconstructed_image_tensor=reconstruction,
+                                            global_step_tensor=global_step,
+                                            save_steps=params.save_summary_steps,
+                                            mode=mode,
+                                            writer=summary_writer)
+
+                return tf.estimator.EstimatorSpec(mode, loss=loss, train_op=train_op, training_hooks=[metrics_hook])
             elif is_validation:
+                metrics_hook = MetricsSaver(original_image_tensor=x,
+                                            reconstructed_image_tensor=reconstruction,
+                                            global_step_tensor=global_step,
+                                            save_steps=1,
+                                            mode=mode,
+                                            writer=summary_writer)
+
                 eval_metric_ops = self.get_validation_metrics(reconstruction_loss=reconstruction_loss,
                                                               q_latent_loss=vq_output.q_latent_loss,
                                                               commitment_loss=vq_output.commitment_loss,
                                                               perplexity=vq_output.perplexity)
 
                 return tf.estimator.EstimatorSpec(mode, loss=loss,
-                                                  eval_metric_ops=eval_metric_ops)
+                                                  eval_metric_ops=eval_metric_ops,
+                                                  evaluation_hooks=[metrics_hook])
 
         super(ImageVQVAEModel, self).__init__(
             model_fn=model_fn, model_dir=model_dir, config=config,
