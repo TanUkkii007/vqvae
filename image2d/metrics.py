@@ -23,9 +23,12 @@ def plot_reconstruction(original_images, reconstructed_images, filename):
 
 # ToDo: generalize for any sizes
 def convert_batch_to_image_grid(image_batch):
-    reshaped = (image_batch.reshape(4, 8, 32, 32, 3)
+    batch_size, image_height, image_width, n_channels = image_batch.shape
+    r = 4
+    c = batch_size // r
+    reshaped = (image_batch.reshape(r, c, image_height, image_width, n_channels)
                 .transpose(0, 2, 1, 3, 4)
-                .reshape(4 * 32, 8 * 32, 3))
+                .reshape(r * image_height, c * image_width, n_channels))
     return reshaped + 0.5
 
 
