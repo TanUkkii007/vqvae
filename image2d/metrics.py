@@ -1,6 +1,7 @@
 import tensorflow as tf
 import os
 import numpy as np
+import time
 import matplotlib
 
 matplotlib.use('Agg')
@@ -55,7 +56,7 @@ class MetricsSaver(tf.train.SessionRunHook):
         if (stale_global_step + 1) % self.save_steps == 0 or stale_global_step == 0:
             global_step_value, original_images, reconstructed_images = run_context.session.run(
                 (self.global_step_tensor, self.original_image_tensor, self.reconstructed_image_tensor))
-            output_filename = "{}_reconstruction_step_{:09d}.png".format(self.mode, global_step_value)
+            output_filename = "{}_reconstruction_step_{:09d}_{}.png".format(self.mode, global_step_value, time.time())
             output_filepath = os.path.join(self.writer.get_logdir(), output_filename)
             tf.logging.info("Saving a %s result for %d at %s", self.mode, global_step_value, output_filepath)
             plot_reconstruction(convert_batch_to_image_grid(original_images),
