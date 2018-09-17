@@ -34,8 +34,8 @@ class VectorQuantizer(tf.layers.Layer):
         self.built = True
 
     def call(self, inputs, **kwargs):
-        z = inputs
-        flat_z = tf.reshape(z, [-1, self._embedding_dim])
+        z = inputs  # (B, H, W, D)
+        flat_z = tf.reshape(z, [-1, self._embedding_dim])  # (B*H*W, D)
 
         distances = self.square_distance_from_e(flat_z)
 
@@ -67,9 +67,13 @@ class VectorQuantizer(tf.layers.Layer):
         return self._e
 
     def square_distance_from_e(self, z):
-        return (tf.reduce_sum(z ** 2, axis=1, keepdims=True)
-                - 2 * tf.matmul(z, self._e)
-                + tf.reduce_sum(self._e ** 2, axis=0, keepdims=True))
+        '''
+        :param z:
+        :return: (B*H*W, K)
+        '''
+        return (tf.reduce_sum(z ** 2, axis=1, keepdims=True)  # (B*H*W, 1)
+                - 2 * tf.matmul(z, self._e)  # (B*H*W, K)
+                + tf.reduce_sum(self._e ** 2, axis=0, keepdims=True))  # (1, K)
 
     def quantize(self, encoding_indices):
         with tf.control_dependencies([encoding_indices]):

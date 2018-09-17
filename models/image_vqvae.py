@@ -46,6 +46,7 @@ class ImageVQVAEModel(tf.estimator.Estimator):
                                         q_latent_loss=vq_output.q_latent_loss,
                                         commitment_loss=vq_output.commitment_loss,
                                         perplexity=vq_output.perplexity,
+                                        encoding_indices=vq_output.encoding_indices,
                                         learning_rate=params.learning_rate)
 
                 optimizer = tf.train.AdamOptimizer(learning_rate=params.learning_rate)
@@ -82,12 +83,13 @@ class ImageVQVAEModel(tf.estimator.Estimator):
 
     @staticmethod
     def add_training_stats(loss, reconstruction_loss, q_latent_loss, commitment_loss,
-                           perplexity, learning_rate):
+                           perplexity, encoding_indices, learning_rate):
         tf.summary.scalar("loss", loss)
         tf.summary.scalar("reconstruction_loss", reconstruction_loss)
         tf.summary.scalar("q_latent_loss", q_latent_loss)
         tf.summary.scalar("commitment_loss", commitment_loss)
         tf.summary.scalar("perplexity", perplexity)
+        tf.summary.histogram("encoding_indices", encoding_indices)
         tf.summary.scalar("learning_rate", learning_rate)
         return tf.summary.merge_all()
 
