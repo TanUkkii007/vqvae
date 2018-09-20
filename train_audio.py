@@ -3,6 +3,7 @@ Usage: train_images.py [options]
 
 Options:
     --checkpoint-dir=<dir>       Directory where to save model checkpoints [default: checkpoints].
+    --data-root=<dir>            Dataset directory.
     --training-list-file=<file>  Training list file
     --validation-list-file=<file> Validation list file
     --hparams=<parmas>           Hyper parameters. [default: ].
@@ -15,6 +16,7 @@ import tensorflow as tf
 import logging
 from multiprocessing import cpu_count
 import csv
+import os
 from datasets.vctk import DatasetSource
 from models.audio_vqvae import MultiSpeakerVQVAEModel
 from hparams_audio import default_params, hparams_debug_string
@@ -52,7 +54,7 @@ def train_and_evaluate(hparams, model_dir, training_list, validation_list):
 
 
 def load_file_list(filename):
-    with open(filename, newline='') as csvfile:
+    with open(filename, newline='', mode='r') as csvfile:
         reader = csv.reader(csvfile, delimiter=',')
         for row in reader:
             yield row[0]
@@ -62,6 +64,7 @@ def main():
     args = docopt(__doc__)
     print("Command line args:\n", args)
     checkpoint_dir = args["--checkpoint-dir"]
+    data_root = args["--data-root"]
     training_list_file = args["--training-list-file"]
     validation_list_file = args["--validation-list-file"]
     dataset_name = args["--dataset"]
@@ -71,6 +74,11 @@ def main():
 
     training_list = load_file_list(training_list_file)
     validation_list = load_file_list(validation_list_file)
+
+    training_files = [os.path.join(data_root, f"{key}.tfrecord") for key in
+                      training_list]
+    validation_files = [os.path.join(data_root, f"{key}.tfrecord") for key in
+                        validation_list]
 
     log = logging.getLogger("tensorflow")
     log.setLevel(logging.INFO)
@@ -83,7 +91,7 @@ def main():
 
     tf.logging.info(hparams_debug_string(default_params))
 
-    train_and_evaluate(default_params, checkpoint_dir, list(training_list), list(validation_list))
+    train_and_evaluate(default_params, checkpoint_dir, training_files, validation_files)
 
 
 if __name__ == '__main__':

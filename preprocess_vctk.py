@@ -14,6 +14,7 @@ from collections import namedtuple
 from audio1d.audio_util import Audio
 import tensorflow as tf
 import numpy as np
+import csv
 from collections.abc import Iterable
 from pyspark import SparkContext, RDD
 from docopt import docopt
@@ -90,7 +91,7 @@ class VCTK:
         file_path = os.path.join(self.out_dir, f"{record.key}.tfrecord")
         write_preprocessed_data(record.key, wav, record.speaker_info.id, record.speaker_info.age,
                                 record.speaker_info.gender, file_path)
-        return file_path
+        return record.key
 
 
 if __name__ == "__main__":
@@ -108,8 +109,6 @@ if __name__ == "__main__":
         sc.parallelize(instance.list_wav_files()))
 
     data_file_paths = rdd.collect()
-
-    import csv
 
     with open(os.path.join(out_dir, 'list.csv'), 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
