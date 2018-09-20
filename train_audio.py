@@ -27,7 +27,9 @@ def train_and_evaluate(hparams, model_dir, training_list, validation_list):
         dataset = DatasetSource.create_from_tfrecord_files(training_list, hparams,
                                                            cycle_length=cpu_count(),
                                                            buffer_output_elements=hparams.interleave_buffer_output_elements,
-                                                           prefetch_input_elements=hparams.interleave_prefetch_input_elements).zip().group_by_batch(
+                                                           prefetch_input_elements=hparams.interleave_prefetch_input_elements).zip(
+
+        ).filter_by_max_output_length().group_by_batch(
             hparams.batch_size).shuffle_and_repeat(buffer_size=hparams.suffle_buffer_size, count=1)
         return dataset.dataset
 

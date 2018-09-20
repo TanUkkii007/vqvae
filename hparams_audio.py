@@ -30,7 +30,7 @@ default_params = tf.contrib.training.HParams(
     use_postprocessing1_bias=True,
     use_postprocessing2_bias=True,
 
-    max_output_length=80000,
+    max_output_length=100000,
 
     # VQVAE
     embedding_dim=64,
