@@ -57,7 +57,7 @@ default_params = tf.contrib.training.HParams(
     prefetch_buffer_size=4,
 
     # Validation
-    num_evaluation_steps=64,
+    num_evaluation_steps=32,
     eval_start_delay_secs=3600,  # 1h: disable time based evaluation
     eval_throttle_secs=86400,  # 24h: disable time based evaluation
 

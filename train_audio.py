@@ -26,12 +26,12 @@ def train_and_evaluate(hparams, model_dir, training_list, validation_list):
                                                            cycle_length=cpu_count(),
                                                            buffer_output_elements=hparams.interleave_buffer_output_elements,
                                                            prefetch_input_elements=hparams.interleave_prefetch_input_elements).zip().group_by_batch(
-            hparams.batch_size)
+            hparams.batch_size).shuffle_and_repeat(buffer_size=hparams.suffle_buffer_size, count=1)
         return dataset.dataset
 
     def eval_input_fn():
         dataset = DatasetSource(tf.data.TFRecordDataset(validation_list), hparams).zip().group_by_batch(
-            hparams.batch_size)
+            hparams.batch_size).shuffle_and_repeat(buffer_size=hparams.suffle_buffer_size, count=1)
         return dataset.dataset
 
     run_config = tf.estimator.RunConfig(save_summary_steps=hparams.save_summary_steps,

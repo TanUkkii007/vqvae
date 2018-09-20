@@ -1,6 +1,7 @@
 import tensorflow as tf
 from vqvae.vector_quantizer import VectorQuantizer
 from audio1d.modules import Encoder, PreNet
+from audio1d.metrics import MetricsSaver
 from wavenet.layers.modules import ConditionProjection, ProbabilityParameterEstimator
 from wavenet.ops.mixture_of_logistics_distribution import discretized_mix_logistic_loss, \
     sample_from_discretized_mix_logistic
@@ -74,6 +75,7 @@ class MultiSpeakerVQVAEModel(tf.estimator.Estimator):
                                         commitment_loss=vq_output.commitment_loss,
                                         perplexity=vq_output.perplexity,
                                         encoding_indices=vq_output.encoding_indices,
+                                        decoder_loss=wavenet_loss,
                                         learning_rate=params.learning_rate)
 
                 optimizer = tf.train.AdamOptimizer(learning_rate=params.learning_rate)
@@ -81,13 +83,20 @@ class MultiSpeakerVQVAEModel(tf.estimator.Estimator):
 
                 return tf.estimator.EstimatorSpec(mode, loss=loss, train_op=train_op)
             elif is_validation:
+                summary_writer = tf.summary.FileWriter(model_dir)
+                metrics_saver = MetricsSaver(global_step, reconstruction, tf.squeeze(y, axis=2),
+                                             features.key,
+                                             1,
+                                             mode, params, summary_writer)
                 eval_metric_ops = self.get_validation_metrics(reconstruction_loss=reconstruction_loss,
                                                               q_latent_loss=vq_output.q_latent_loss,
                                                               commitment_loss=vq_output.commitment_loss,
-                                                              perplexity=vq_output.perplexity)
+                                                              perplexity=vq_output.perplexity,
+                                                              decoder_loss=wavenet_loss)
 
                 return tf.estimator.EstimatorSpec(mode, loss=loss,
-                                                  eval_metric_ops=eval_metric_ops)
+                                                  eval_metric_ops=eval_metric_ops,
+                                                  evaluation_hooks=[metrics_saver])
 
         super(MultiSpeakerVQVAEModel, self).__init__(
             model_fn=model_fn, model_dir=model_dir, config=config,
@@ -95,21 +104,23 @@ class MultiSpeakerVQVAEModel(tf.estimator.Estimator):
 
     @staticmethod
     def add_training_stats(loss, reconstruction_loss, q_latent_loss, commitment_loss,
-                           perplexity, encoding_indices, learning_rate):
+                           perplexity, encoding_indices, decoder_loss, learning_rate):
         tf.summary.scalar("loss", loss)
         tf.summary.scalar("reconstruction_loss", reconstruction_loss)
         tf.summary.scalar("q_latent_loss", q_latent_loss)
         tf.summary.scalar("commitment_loss", commitment_loss)
         tf.summary.scalar("perplexity", perplexity)
         tf.summary.histogram("encoding_indices", encoding_indices)
+        tf.summary.scalar("decoder_loss", decoder_loss)
         tf.summary.scalar("learning_rate", learning_rate)
         return tf.summary.merge_all()
 
     @staticmethod
-    def get_validation_metrics(reconstruction_loss, q_latent_loss, commitment_loss, perplexity):
+    def get_validation_metrics(reconstruction_loss, q_latent_loss, commitment_loss, perplexity, decoder_loss):
         return {
             'reconstruction_loss': tf.metrics.mean(reconstruction_loss),
             'q_latent_loss': tf.metrics.mean(q_latent_loss),
             'commitment_loss': tf.metrics.mean(commitment_loss),
-            'perplexity': tf.metrics.mean(perplexity)
+            'perplexity': tf.metrics.mean(perplexity),
+            'decoder_loss': tf.metrics.mean(decoder_loss)
         }
