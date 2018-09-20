@@ -62,7 +62,7 @@ class MultiSpeakerVQVAEModel(tf.estimator.Estimator):
             reconstruction = sample_from_discretized_mix_logistic(probability_params, params.n_logistic_mix)
 
             reconstruction_loss = tf.losses.compute_weighted_loss(
-                tf.squared_difference(reconstruction, y))
+                tf.squared_difference(reconstruction, tf.squeeze(y, axis=2)))
             loss = vq_output.loss + reconstruction_loss
 
             global_step = tf.train.get_global_step()
