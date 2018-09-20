@@ -83,7 +83,7 @@ def main():
     log = logging.getLogger("tensorflow")
     log.setLevel(logging.INFO)
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    fh = logging.FileHandler(default_params.logfile)
+    fh = logging.FileHandler(os.path.join(checkpoint_dir, default_params.logfile))
     fh.setLevel(logging.INFO)
     fh.setFormatter(formatter)
     log.addHandler(fh)
