@@ -15,7 +15,7 @@ default_params = tf.contrib.training.HParams(
     n_logistic_mix=8,
     local_condition_label_dim=64,  # == embedding_dim
     use_global_condition=True,
-    global_condition_cardinality=108,
+    global_condition_cardinality=152,
     speaker_id_offset=225,
     filter_width=3,
     residual_channels=64,
