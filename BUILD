@@ -24,3 +24,15 @@ py_binary(
         ":models_audio_vqvae",
     ],
 )
+
+py_binary(
+    name = "predict_audio",
+    srcs = [
+        "predict_audio.py",
+    ],
+    srcs_version = "PY3ONLY",
+    default_python_version = "PY3",
+    deps = [
+        ":models_audio_vqvae",
+    ],
+)

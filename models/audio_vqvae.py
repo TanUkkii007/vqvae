@@ -2,7 +2,7 @@ import tensorflow as tf
 from vqvae.vector_quantizer import VectorQuantizer
 from audio1d.modules import Encoder, PreNet
 from audio1d.metrics import MetricsSaver
-from wavenet.layers.modules import ConditionProjection, ProbabilityParameterEstimator
+from wavenet.layers.modules import ConditionProjection, ProbabilityParameterEstimator, generate_samples
 from wavenet.ops.mixture_of_logistics_distribution import discretized_mix_logistic_loss, \
     sample_from_discretized_mix_logistic
 
@@ -97,6 +97,14 @@ class MultiSpeakerVQVAEModel(tf.estimator.Estimator):
                 return tf.estimator.EstimatorSpec(mode, loss=loss,
                                                   eval_metric_ops=eval_metric_ops,
                                                   evaluation_hooks=[metrics_saver])
+            elif is_prediction:
+                predicted_waveform = generate_samples(wavenet_decoder, h, params.n_logistic_mix)
+                return tf.estimator.EstimatorSpec(mode, predictions={
+                    "key": features.key,
+                    "predicted_waveform": predicted_waveform,
+                    "ground_truth_waveform": tf.squeeze(features.waveform, axis=2),
+                    "speaker_id": features.speaker_id,
+                })
 
         super(MultiSpeakerVQVAEModel, self).__init__(
             model_fn=model_fn, model_dir=model_dir, config=config,
