@@ -112,7 +112,7 @@ class EMVectorQuantizer(tf.layers.Layer):
         distances = self.square_distance_from_e(flat_z)  # (B*H*W, K)
 
         # E step
-        multinomial = tfp.distributions.Multinomial(total_count=1.0, logits=distances)
+        multinomial = tfp.distributions.Multinomial(total_count=1.0, logits=-distances)
         samples = multinomial.sample(self._sampling_count)  # (M, B*H*W, K)
         # M step
         encoder_hidden_count_per_embed = tf.reduce_sum(samples, axis=[0, 1]) / self._sampling_count  # (K)
