@@ -1,5 +1,5 @@
 import tensorflow as tf
-from vqvae.vector_quantizer import VectorQuantizer
+from vqvae.vector_quantizer import vector_quantizer_factory
 from image2d.modules import Encoder, Decoder, PreNet
 from image2d.metrics import MetricsSaver
 
@@ -25,10 +25,11 @@ class ImageVQVAEModel(tf.estimator.Estimator):
 
             pre_vq_conv1 = PreNet(params.embedding_dim)
 
-            vq_vae = VectorQuantizer(
-                embedding_dim=params.embedding_dim,
-                num_embeddings=params.num_embeddings,
-                commitment_cost=params.commitment_cost)
+            vq_vae = vector_quantizer_factory(params.vector_quantizer,
+                                              embedding_dim=params.embedding_dim,
+                                              num_embeddings=params.num_embeddings,
+                                              commitment_cost=params.commitment_cost,
+                                              sampling_count=params.sampling_count)
 
             z = pre_vq_conv1(encoder(x))
             vq_output = vq_vae(z)
