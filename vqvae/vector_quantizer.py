@@ -9,7 +9,7 @@ from collections import namedtuple
 
 class VectorQuantizationResult(
     namedtuple("VectorQuantizationResult",
-               ["quantize", "perplexity", "encodings", "encoding_indices", "loss", "q_latent_loss",
+               ["quantize", "perplexity", "log_perplexity", "encodings", "encoding_indices", "loss", "q_latent_loss",
                 "commitment_loss"])):
     pass
 
@@ -53,10 +53,12 @@ class VectorQuantizer(tf.layers.Layer):
 
         quantized = z + tf.stop_gradient(quantized - z)
         avg_probs = tf.reduce_mean(encodings, axis=0)
-        perplexity = tf.exp(- tf.reduce_sum(avg_probs * tf.log(avg_probs + 1e-10)))
+        log_perplexity = - tf.reduce_sum(avg_probs * tf.log(avg_probs + 1e-10))
+        perplexity = tf.exp(log_perplexity)
 
         return VectorQuantizationResult(quantize=quantized,
                                         perplexity=perplexity,
+                                        log_perplexity=log_perplexity,
                                         encodings=encodings,
                                         encoding_indices=encoding_indices,
                                         loss=loss,
@@ -130,18 +132,20 @@ class EMVectorQuantizer(tf.layers.Layer):
 
         quantized = self.quantize(new_embeddings, encoding_indices)  # (B, H, W, D)
 
-        q_latent_loss = (tf.stop_gradient(z) - quantized) ** 2
+        q_latent_loss = 0
         commitment_loss = (z - tf.stop_gradient(quantized)) ** 2
-        loss = tf.losses.compute_weighted_loss(0 + self._commitment_cost * commitment_loss)
+        loss = tf.losses.compute_weighted_loss(q_latent_loss + self._commitment_cost * commitment_loss)
 
         self.add_loss(loss)
 
         quantized = z + tf.stop_gradient(quantized - z)
         avg_probs = tf.reduce_mean(samples, axis=[0, 1])
-        perplexity = tf.exp(- tf.reduce_sum(avg_probs * tf.log(avg_probs + 1e-10)))
+        log_perplexity = - tf.reduce_sum(avg_probs * tf.log(avg_probs + 1e-10))
+        perplexity = tf.exp(log_perplexity)
 
         return VectorQuantizationResult(quantize=quantized,
                                         perplexity=perplexity,
+                                        log_perplexity=log_perplexity,
                                         encodings=encodings,
                                         encoding_indices=encoding_indices,
                                         loss=loss,

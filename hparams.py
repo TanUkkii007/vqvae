@@ -18,7 +18,7 @@ default_params = tf.contrib.training.HParams(
 
     # VectorQuantizer
     vector_quantizer="VectorQuantizer",
-    sampling_count=40,
+    sampling_count=10,
 
     # Training
     batch_size=32,
