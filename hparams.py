@@ -16,6 +16,10 @@ default_params = tf.contrib.training.HParams(
     num_embeddings=512,
     commitment_cost=0.25,
 
+    # VectorQuantizer
+    vector_quantizer="VectorQuantizer",
+    sampling_count=10,
+
     # Training
     batch_size=32,
     learning_rate=3e-4,
@@ -24,9 +28,10 @@ default_params = tf.contrib.training.HParams(
     keep_checkpoint_max=200,
     keep_checkpoint_every_n_hours=1,
     log_step_count_steps=1,
+    shuffle_buffer_size=4,
 
     # Validation
-    num_evaluation_steps=64,
+    num_evaluation_steps=32,
     eval_start_delay_secs=3600,  # 1h: disable time based evaluation
     eval_throttle_secs=86400,  # 24h: disable time based evaluation
 

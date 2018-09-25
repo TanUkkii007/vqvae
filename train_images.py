@@ -21,12 +21,18 @@ from hparams import default_params, hparams_debug_string
 def train_and_evaluate(hparams, model_dir, data_dir):
     def train_input_fn():
         data_dict = train_data_dict(data_dir)
-        dataset = DatasetSource(data_dict['images'], data_dict['labels'], hparams).zip().batch(hparams.batch_size)
+        dataset = DatasetSource(data_dict['images'], data_dict['labels'], hparams)\
+            .zip()\
+            .batch(hparams.batch_size)\
+            .shuffle_and_repeat(hparams.shuffle_buffer_size, count=1)
         return dataset.dataset
 
     def eval_input_fn():
         data_dict = valid_data_dict(data_dir)
-        dataset = DatasetSource(data_dict['images'], data_dict['labels'], hparams).zip().batch(hparams.batch_size)
+        dataset = DatasetSource(data_dict['images'], data_dict['labels'], hparams)\
+            .zip()\
+            .batch(hparams.batch_size)\
+            .shuffle(hparams.shuffle_buffer_size)
         return dataset.dataset
 
     run_config = tf.estimator.RunConfig(save_summary_steps=hparams.save_summary_steps,

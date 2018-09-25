@@ -20,6 +20,7 @@ def plot_reconstruction(original_images, reconstructed_images, filename):
     ax.set_title('reconstructed data')
     ax.set_axis_off()
     figure.savefig(filename)
+    plt.close()
 
 
 # ToDo: generalize for any sizes

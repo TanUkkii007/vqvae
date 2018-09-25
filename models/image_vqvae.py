@@ -1,5 +1,5 @@
 import tensorflow as tf
-from vqvae.vector_quantizer import VectorQuantizer
+from vqvae.vector_quantizer import vector_quantizer_factory
 from image2d.modules import Encoder, Decoder, PreNet
 from image2d.metrics import MetricsSaver
 
@@ -25,10 +25,11 @@ class ImageVQVAEModel(tf.estimator.Estimator):
 
             pre_vq_conv1 = PreNet(params.embedding_dim)
 
-            vq_vae = VectorQuantizer(
-                embedding_dim=params.embedding_dim,
-                num_embeddings=params.num_embeddings,
-                commitment_cost=params.commitment_cost)
+            vq_vae = vector_quantizer_factory(params.vector_quantizer,
+                                              embedding_dim=params.embedding_dim,
+                                              num_embeddings=params.num_embeddings,
+                                              commitment_cost=params.commitment_cost,
+                                              sampling_count=params.sampling_count)
 
             z = pre_vq_conv1(encoder(x))
             vq_output = vq_vae(z)
@@ -46,6 +47,7 @@ class ImageVQVAEModel(tf.estimator.Estimator):
                                         q_latent_loss=vq_output.q_latent_loss,
                                         commitment_loss=vq_output.commitment_loss,
                                         perplexity=vq_output.perplexity,
+                                        log_perplexity=vq_output.log_perplexity,
                                         encoding_indices=vq_output.encoding_indices,
                                         learning_rate=params.learning_rate)
 
@@ -71,7 +73,8 @@ class ImageVQVAEModel(tf.estimator.Estimator):
                 eval_metric_ops = self.get_validation_metrics(reconstruction_loss=reconstruction_loss,
                                                               q_latent_loss=vq_output.q_latent_loss,
                                                               commitment_loss=vq_output.commitment_loss,
-                                                              perplexity=vq_output.perplexity)
+                                                              perplexity=vq_output.perplexity,
+                                                              log_perplexity=vq_output.log_perplexity)
 
                 return tf.estimator.EstimatorSpec(mode, loss=loss,
                                                   eval_metric_ops=eval_metric_ops,
@@ -83,21 +86,23 @@ class ImageVQVAEModel(tf.estimator.Estimator):
 
     @staticmethod
     def add_training_stats(loss, reconstruction_loss, q_latent_loss, commitment_loss,
-                           perplexity, encoding_indices, learning_rate):
+                           perplexity, log_perplexity, encoding_indices, learning_rate):
         tf.summary.scalar("loss", loss)
         tf.summary.scalar("reconstruction_loss", reconstruction_loss)
         tf.summary.scalar("q_latent_loss", q_latent_loss)
         tf.summary.scalar("commitment_loss", commitment_loss)
         tf.summary.scalar("perplexity", perplexity)
+        tf.summary.scalar("log_perplexity", log_perplexity)
         tf.summary.histogram("encoding_indices", encoding_indices)
         tf.summary.scalar("learning_rate", learning_rate)
         return tf.summary.merge_all()
 
     @staticmethod
-    def get_validation_metrics(reconstruction_loss, q_latent_loss, commitment_loss, perplexity):
+    def get_validation_metrics(reconstruction_loss, q_latent_loss, commitment_loss, perplexity, log_perplexity):
         return {
             'reconstruction_loss': tf.metrics.mean(reconstruction_loss),
             'q_latent_loss': tf.metrics.mean(q_latent_loss),
             'commitment_loss': tf.metrics.mean(commitment_loss),
-            'perplexity': tf.metrics.mean(perplexity)
+            'perplexity': tf.metrics.mean(perplexity),
+            'log_perplexity': tf.metrics.mean(log_perplexity)
         }
