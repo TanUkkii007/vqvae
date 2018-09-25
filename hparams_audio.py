@@ -36,6 +36,8 @@ default_params = tf.contrib.training.HParams(
     embedding_dim=64,
     num_embeddings=512,
     commitment_cost=0.25,
+    vector_quantizer="VectorQuantizer",
+    sampling_count=10,
 
     # Training
     batch_size=1,
