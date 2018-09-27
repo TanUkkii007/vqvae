@@ -120,7 +120,8 @@ class EMVectorQuantizer(tf.layers.Layer):
         encoder_hidden_count_per_embed = tf.reduce_sum(samples, axis=[0, 1]) / self._sampling_count  # (K)
         sample_sum = tf.reduce_sum(samples, axis=0)  # (B*H*W, K)
         new_embeddings = tf.reduce_sum(tf.expand_dims(flat_z, axis=2) * tf.expand_dims(sample_sum, axis=1),
-                                       axis=0) / self._sampling_count / encoder_hidden_count_per_embed  # (D, K)
+                                       axis=0) / self._sampling_count / (
+                                     encoder_hidden_count_per_embed + 1e-10)  # (D, K)
         new_embeddings = tf.assign(self.embeddings, new_embeddings)
 
         # sampled decoder inputs
