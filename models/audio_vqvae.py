@@ -65,7 +65,7 @@ class MultiSpeakerVQVAEModel(tf.estimator.Estimator):
 
             reconstruction_loss = tf.losses.compute_weighted_loss(
                 tf.squared_difference(reconstruction, tf.squeeze(y, axis=2)))
-            loss = vq_output.loss + reconstruction_loss
+            loss = vq_output.loss + wavenet_loss
 
             global_step = tf.train.get_global_step()
 
