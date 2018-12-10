@@ -47,6 +47,8 @@ class MultiSpeakerVQVAEModel(tf.estimator.Estimator):
                                               embedding_dim=params.embedding_dim,
                                               num_embeddings=params.num_embeddings,
                                               commitment_cost=params.commitment_cost,
+                                              ema_decay=params.ema_decay,
+                                              ema_epsilon=params.ema_epsilon,
                                               sampling_count=params.sampling_count)
 
             z = pre_vq_conv1(encoder(x))

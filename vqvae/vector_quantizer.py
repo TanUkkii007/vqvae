@@ -3,6 +3,7 @@ Reference: https://github.com/deepmind/sonnet/blob/master/sonnet/python/modules/
 '''
 
 import tensorflow as tf
+from tensorflow.python.training import moving_averages
 import tensorflow_probability as tfp
 from collections import namedtuple
 
@@ -84,6 +85,110 @@ class VectorQuantizer(tf.layers.Layer):
             return tf.nn.embedding_lookup(e, encoding_indices, validate_indices=False)
 
 
+class VectorQuantizerEMA(tf.layers.Layer):
+
+    def __init__(self, embedding_dim, num_embeddings, commitment_cost,
+                 decay, epsilon,
+                 trainable=True, name=None, dtype=None,
+                 **kwargs):
+        super(VectorQuantizerEMA, self).__init__(trainable=trainable, name=name, dtype=dtype,
+                                                 **kwargs)
+
+        self._embedding_dim = embedding_dim
+        self._num_embeddings = num_embeddings
+        self._commitment_cost = commitment_cost
+        self._decay = decay
+        self._epsilon = epsilon
+
+    def build(self, input_shape):
+        assert input_shape[-1].value, self._embedding_dim
+
+        self._e = self.add_weight("e",
+                                  shape=[self._embedding_dim, self._num_embeddings],
+                                  initializer=tf.uniform_unit_scaling_initializer())
+        self._ema_cluster_size = self.add_weight("ema_cluster_size",
+                                                 shape=[self._num_embeddings],
+                                                 initializer=tf.zeros_initializer(),
+                                                 use_resource=True)
+        self._ema_w = self.add_weight("ema_dw",
+                                      shape=self._e.shape,
+                                      initializer=lambda shape, dtype=None, partition_info=None,
+                                                         verify_shape=None: self._e.initialized_value(),
+                                      use_resource=True)
+        self.built = True
+
+    def call(self, inputs, is_training=False):
+        z = inputs  # (B, H, W, D)
+        flat_z = tf.reshape(z, [-1, self._embedding_dim])  # (B*H*W, D)
+
+        distances = self.square_distance_from_e(flat_z)
+
+        encoding_indices = tf.argmax(-distances, axis=1)  # (B*H*W)
+        encodings = tf.one_hot(encoding_indices, self._num_embeddings)
+        encoding_indices = tf.reshape(encoding_indices, shape=tf.shape(z)[:-1])  # (B, H, W)
+        quantized = self.quantize(encoding_indices)  # (B, H, W, D)
+
+        q_latent_loss = (tf.stop_gradient(z) - quantized) ** 2
+        commitment_loss = (z - tf.stop_gradient(quantized)) ** 2
+
+        if is_training:
+            loss = self.ema_update(flat_z, encodings, commitment_loss, q_latent_loss)
+        else:
+            loss = tf.losses.compute_weighted_loss(q_latent_loss + self._commitment_cost * commitment_loss)
+        self.add_loss(loss)
+
+        quantized = z + tf.stop_gradient(quantized - z)
+        avg_probs = tf.reduce_mean(encodings, axis=0)
+        log_perplexity = - tf.reduce_sum(avg_probs * tf.log(avg_probs + 1e-10))
+        perplexity = tf.exp(log_perplexity)
+
+        return VectorQuantizationResult(quantize=quantized,
+                                        perplexity=perplexity,
+                                        log_perplexity=log_perplexity,
+                                        encodings=encodings,
+                                        encoding_indices=encoding_indices,
+                                        loss=loss,
+                                        q_latent_loss=tf.reduce_mean(q_latent_loss),
+                                        commitment_loss=tf.reduce_mean(commitment_loss))
+
+    @property
+    def embeddings(self):
+        return self._e
+
+    def square_distance_from_e(self, z):
+        '''
+        :param z:
+        :return: (B*H*W, K)
+        '''
+        with tf.control_dependencies([z]):
+            e = self._e.read_value()
+            return (tf.reduce_sum(z ** 2, axis=1, keepdims=True)  # (B*H*W, 1)
+                    - 2 * tf.matmul(z, e)  # (B*H*W, K)
+                    + tf.reduce_sum(e ** 2, axis=0, keepdims=True))  # (1, K)
+
+    def quantize(self, encoding_indices):
+        with tf.control_dependencies([encoding_indices]):
+            e = tf.transpose(self.embeddings.read_value(), perm=[1, 0])
+            return tf.nn.embedding_lookup(e, encoding_indices, validate_indices=False)
+
+    def ema_update(self, flat_z, encodings, commitment_loss, q_latent_loss):
+        updated_ema_cluster_size = moving_averages.assign_moving_average(self._ema_cluster_size,
+                                                                         tf.reduce_sum(encodings, 0), self._decay)
+        dw = tf.matmul(flat_z, encodings, transpose_a=True)
+        updated_ema_w = moving_averages.assign_moving_average(self._ema_w, dw, self._decay)
+        n = tf.reduce_sum(updated_ema_cluster_size)
+        updated_ema_cluster_size = (
+                (updated_ema_cluster_size + self._epsilon) / (n + self._num_embeddings * self._epsilon)
+                * n)
+        normalized_updated_ema_w = updated_ema_w / tf.reshape(updated_ema_cluster_size, [1, -1])
+
+        with tf.control_dependencies([commitment_loss]):
+            update_e = tf.assign(self._e, normalized_updated_ema_w)
+            with tf.control_dependencies([update_e]):
+                loss = tf.losses.compute_weighted_loss(q_latent_loss + self._commitment_cost * commitment_loss)
+                return loss
+
+
 class EMVectorQuantizer(tf.layers.Layer):
 
     def __init__(self, embedding_dim, num_embeddings, commitment_cost,
@@ -104,7 +209,8 @@ class EMVectorQuantizer(tf.layers.Layer):
         self._e = self.add_weight("e",
                                   shape=[self._embedding_dim, self._num_embeddings],
                                   initializer=tf.uniform_unit_scaling_initializer(),
-                                  trainable=False)
+                                  trainable=False,
+                                  use_resource=True)
         self.built = True
 
     def call(self, inputs, **kwargs):
@@ -121,7 +227,7 @@ class EMVectorQuantizer(tf.layers.Layer):
         sample_sum = tf.reduce_sum(samples, axis=0)  # (B*H*W, K)
         new_embeddings = tf.reduce_sum(tf.expand_dims(flat_z, axis=2) * tf.expand_dims(sample_sum, axis=1),
                                        axis=0) / self._sampling_count / (
-                                     encoder_hidden_count_per_embed + 1e-10)  # (D, K)
+                                 encoder_hidden_count_per_embed + 1e-10)  # (D, K)
         new_embeddings = tf.assign(self.embeddings, new_embeddings)
 
         # sampled decoder inputs
@@ -162,9 +268,11 @@ class EMVectorQuantizer(tf.layers.Layer):
         :param z:
         :return: (B*H*W, K)
         '''
-        return (tf.reduce_sum(z ** 2, axis=1, keepdims=True)  # (B*H*W, 1)
-                - 2 * tf.matmul(z, self._e)  # (B*H*W, K)
-                + tf.reduce_sum(self._e ** 2, axis=0, keepdims=True))  # (1, K)
+        with tf.control_dependencies([z]):
+            e = self._e.read_value()
+            return (tf.reduce_sum(z ** 2, axis=1, keepdims=True)  # (B*H*W, 1)
+                    - 2 * tf.matmul(z, e)  # (B*H*W, K)
+                    + tf.reduce_sum(e ** 2, axis=0, keepdims=True))  # (1, K)
 
     def quantize(self, embeddings, encoding_indices):
         with tf.control_dependencies([encoding_indices]):
@@ -174,12 +282,20 @@ class EMVectorQuantizer(tf.layers.Layer):
             return quantized
 
 
-def vector_quantizer_factory(name, embedding_dim, num_embeddings, commitment_cost, sampling_count):
+def vector_quantizer_factory(name, embedding_dim, num_embeddings, commitment_cost, ema_decay, ema_epsilon,
+                             sampling_count):
     if name == "VectorQuantizer":
         vq_vae = VectorQuantizer(
             embedding_dim=embedding_dim,
             num_embeddings=num_embeddings,
             commitment_cost=commitment_cost)
+    elif name == "VectorQuantizerEMA":
+        vq_vae = VectorQuantizerEMA(
+            embedding_dim=embedding_dim,
+            num_embeddings=num_embeddings,
+            commitment_cost=commitment_cost,
+            decay=ema_decay,
+            epsilon=ema_epsilon)
     elif name == "EMVectorQuantizer":
         vq_vae = EMVectorQuantizer(
             embedding_dim=embedding_dim,

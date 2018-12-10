@@ -18,6 +18,10 @@ default_params = tf.contrib.training.HParams(
 
     # VectorQuantizer
     vector_quantizer="VectorQuantizer",
+    # EMA
+    ema_decay=0.99,
+    ema_epsilon=1e-5,
+    # EM
     sampling_count=10,
 
     # Training
